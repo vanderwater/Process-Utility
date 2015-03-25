@@ -1,16 +1,21 @@
-package process_utility
+package process_utility;
+
+// To compile the protocol buffer definition, run protoc with the --go_out
+// parameter set to the directory you want to output the Go code to.
+//
+//	protoc --go_out=. *.proto
 
 message Process {
 
-	required int pid = 1;
-	required int vsz = 2;
-	required string time = 3;
-	required string comm = 4;
+	optional int32 pid = 1;
+	optional int32 vsz = 2;
+	optional string time = 3;
+	optional string comm = 4;
 
 	}
 
 message ProcessSet {
 	
-	repeated Process process = 1
+	repeated Process process = 1;
 	
 	}
