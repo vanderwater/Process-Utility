@@ -1,0 +1,16 @@
+package process_utility
+
+message Process {
+
+	required int pid = 1;
+	required int vsz = 2;
+	required string time = 3;
+	required string comm = 4;
+
+	}
+
+message ProcessSet {
+	
+	repeated Process process = 1
+	
+	}
