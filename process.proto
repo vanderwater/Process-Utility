@@ -1,4 +1,4 @@
-package process_utility;
+package processUtility;
 
 // To compile the protocol buffer definition, run protoc with the --go_out
 // parameter set to the directory you want to output the Go code to.
@@ -16,6 +16,6 @@ message Process {
 
 message ProcessSet {
 	
-	repeated Process process = 1;
+	repeated Process processes = 1;
 	
 	}

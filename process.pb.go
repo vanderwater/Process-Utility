@@ -3,7 +3,7 @@
 // DO NOT EDIT!
 
 /*
-Package process_utility is a generated protocol buffer package.
+Package processUtility is a generated protocol buffer package.
 
 It is generated from these files:
 	process.proto
@@ -12,7 +12,7 @@ It has these top-level messages:
 	Process
 	ProcessSet
 */
-package process_utility
+package processUtility
 
 import proto "github.com/golang/protobuf/proto"
 import math "math"
@@ -62,7 +62,7 @@ func (m *Process) GetComm() string {
 }
 
 type ProcessSet struct {
-	Process          []*Process `protobuf:"bytes,1,rep,name=process" json:"process,omitempty"`
+	Processes        []*Process `protobuf:"bytes,1,rep,name=processes" json:"processes,omitempty"`
 	XXX_unrecognized []byte     `json:"-"`
 }
 
@@ -70,9 +70,9 @@ func (m *ProcessSet) Reset()         { *m = ProcessSet{} }
 func (m *ProcessSet) String() string { return proto.CompactTextString(m) }
 func (*ProcessSet) ProtoMessage()    {}
 
-func (m *ProcessSet) GetProcess() []*Process {
+func (m *ProcessSet) GetProcesses() []*Process {
 	if m != nil {
-		return m.Process
+		return m.Processes
 	}
 	return nil
 }
