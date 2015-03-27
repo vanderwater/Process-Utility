@@ -7,6 +7,9 @@ package processUtility;
 
 message Process {
 
+    // See man ps to choose better names:
+    // pid        process ID
+    // ...
 	optional int32 pid = 1;
 	optional int32 vsz = 2;
 	optional string time = 3;
