@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"time"
@@ -23,12 +24,13 @@ import (
 type ProcessInfo struct {
 	ProcessID, VirtualSize int32
 	Command, TimeStarted   string
+	CPUUsage               float64
 }
 
 //Calls ps and returns the output
 func GetCurrentProcesses() []byte {
 
-	ps := exec.Command("ps", "-e", "-o pid,vsz,time,comm")
+	ps := exec.Command("ps", "-e", "-o pid,vsz,time,comm,pcpu")
 	output, err := ps.Output()
 	if err != nil {
 		panic(err)
@@ -50,8 +52,36 @@ func PBProcess(src ProcessInfo) *processUtility.Process {
 	return result
 }
 
-// Should marshal all the different process infos, terminated, updated, and started
-func SendProcessInfo(start []ProcessInfo, finished []ProcessInfo, updated []ProcessInfo) ([]byte, error) {
+func Int32PercentDifference(first int32, second int32) float64 {
+	var result float64
+	result = math.Abs(float64(first - second))
+	result = result / (float64(first+second) / 2)
+	result = result * 100
+	return result
+}
+
+func Float64PercentDifference(first float64, second float64) float64 {
+	var result float64
+	result = math.Abs(first - second)
+	result = result / ((first + second) / 2)
+	result = result * 100
+	return result
+}
+
+// Compares two Processes and return true if they are different enough
+func HasProcessChanged(proc1 ProcessInfo, proc2 ProcessInfo) bool {
+
+	// Check CPU
+
+	// Check Virtual Size
+	if Int32PercentDifference(proc1.VirtualSize, proc2.VirtualSize) >= 10 {
+		return true
+	}
+	return false
+}
+
+// Marshals started and terminated process Info
+func MarshalEventInfo(start []ProcessInfo, finished []ProcessInfo) ([]byte, error) {
 
 	processSet := new(processUtility.ProcessSet)
 
@@ -67,16 +97,21 @@ func SendProcessInfo(start []ProcessInfo, finished []ProcessInfo, updated []Proc
 		processSet.Processes = append(processSet.Processes, currentProcess)
 	}
 
-	//	for _, curr := range updated {
-	//		currentProcess := PBProcess(curr)
-	//	processSet.Processes = append(processSet.Processes, currentProcess)
-	//	}
-
-	// Do nothing for updated Process Info
-	_ = updated
-
 	return proto.Marshal(processSet)
 
+}
+
+// Marshals updated process info
+func MarshalUpdateInfo(updates []ProcessInfo) ([]byte, error) {
+
+	processSet := new(processUtility.ProcessSet)
+
+	for _, curr := range updates {
+		currentProcess := PBProcess(curr)
+		processSet.Processes = append(processSet.Processes, currentProcess)
+	}
+
+	return proto.Marshal(processSet)
 }
 
 func TryParse(outputLine string) (ProcessInfo, bool) {
@@ -131,8 +166,9 @@ func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 	oldProcessMap := make(map[int32]ProcessInfo)
 
 	fileo, _ := os.Create("output.txt") // todo: implement err checking
-
 	defer fileo.Close()
+	filee, _ := os.Create("events.txt")
+	defer filee.Close()
 
 	clock := time.NewTicker(updatePeriod * time.Second)
 
@@ -148,6 +184,9 @@ func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 			// To-do: Something if its invalid
 			if currentProcess, valid := TryParse(line); valid {
 				processMap[currentProcess.ProcessID] = currentProcess
+
+				// We want to compare new process to old processes
+
 			}
 
 			// To-do: current Process against old process to see if I should update events slice
@@ -161,9 +200,13 @@ func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 		processesFinished := MapDifference(oldProcessMap, processMap)
 
 		// Marshals Processes
-		result, _ := SendProcessInfo(processesStarted, processesFinished, processesUpdated)
+		events, _ := MarshalEventInfo(processesStarted, processesFinished)
+		filee.Write(events)
 
-		fileo.Write(result)
+		updates, _ := MarshalOutputInfo(processesUpdated)
+
+		fileo.Write(updates)
+
 		fmt.Println("Logged at", now)
 
 		// set oldProcessMap to current
