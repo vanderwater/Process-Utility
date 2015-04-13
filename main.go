@@ -160,12 +160,14 @@ func TryParse(outputLine string) (ProcessInfo, bool) {
 	return result, true
 }
 
+// Something is wrong here
 func MapDifference(primary map[int32]ProcessInfo, secondary map[int32]ProcessInfo) []ProcessInfo {
 
-	result := make([]ProcessInfo, 100)
+	result := make([]ProcessInfo, 0)
 
 	for id, process := range primary {
-		if _, ok := secondary[id]; !ok {
+		_, ok := secondary[id]
+		if !ok {
 			result = append(result, process)
 		}
 	}
@@ -213,6 +215,9 @@ func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 		// Gets processes started and finished
 		processesStarted := MapDifference(processMap, oldProcessMap)
 		processesFinished := MapDifference(oldProcessMap, processMap)
+
+		fmt.Println(processesStarted)
+		fmt.Println(processesFinished)
 
 		// Marshals Processes
 		events, _ := MarshalEventInfo(processesStarted, processesFinished)
