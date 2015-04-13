@@ -21,6 +21,9 @@ import (
 *
  */
 
+// In order to add a new field to Protobuf
+// Add field to Process Info, update TryParse and PBProcess
+
 type ProcessInfo struct {
 	ProcessID, VirtualSize int32
 	Command, TimeStarted   string
@@ -48,6 +51,7 @@ func PBProcess(src ProcessInfo) *processUtility.Process {
 	// Is it possible that addresses won't be cleaned up due to this?
 	result.TimeStarted = &src.TimeStarted
 	result.Command = &src.Command
+	result.CPUUsage = proto.Float64(src.CPUUsage)
 
 	return result
 }
@@ -71,9 +75,12 @@ func Float64PercentDifference(first float64, second float64) float64 {
 // Compares two Processes and return true if they are different enough
 func HasProcessChanged(proc1 ProcessInfo, proc2 ProcessInfo) bool {
 
-	// Check CPU
+	// Check CPU greater than 50 percent
+	if Float64PercentDifference(proc1.CPUUsage, proc2.CPUUsage) >= 50 {
+		return true
+	}
 
-	// Check Virtual Size
+	// Check Virtual Size greater than 10 percent
 	if Int32PercentDifference(proc1.VirtualSize, proc2.VirtualSize) >= 10 {
 		return true
 	}
@@ -119,10 +126,10 @@ func TryParse(outputLine string) (ProcessInfo, bool) {
 	outputFields := strings.Fields(outputLine)
 
 	var result ProcessInfo
-	nilProcess := ProcessInfo{ProcessID: 0, VirtualSize: 0, TimeStarted: "", Command: ""}
+	nilProcess := ProcessInfo{ProcessID: 0, VirtualSize: 0, TimeStarted: "", Command: "", CPUUsage: 0}
 	// checks for first iteration and last iteration of outputFields
 	// First iteration is top line of ps created by output
-	if len(outputFields) != 4 {
+	if len(outputFields) != 5 {
 		// To-do: Getting error on returning nil, figure out what to return
 		// instead of nilProcess
 		return nilProcess, false
@@ -138,11 +145,17 @@ func TryParse(outputLine string) (ProcessInfo, bool) {
 	if err != nil {
 		return nilProcess, false
 	}
+	cpuu, err := strconv.ParseFloat(outputFields[4], 64)
+	if err != nil {
+		return nilProcess, false
+	}
+
 	// Puts outputline data into processinfo struct and returns it
 	result.ProcessID = int32(pid)
 	result.VirtualSize = int32(vsz)
 	result.TimeStarted = outputFields[2]
 	result.Command = outputFields[3]
+	result.CPUUsage = cpuu
 
 	return result, true
 }
@@ -177,6 +190,8 @@ func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 
 		processMap := make(map[int32]ProcessInfo)
 
+		processesUpdated := make([]ProcessInfo, 0)
+
 		output := GetCurrentProcesses()
 		outputLines := strings.Split(string(output), "\n")
 		// Loop over all the outputs, check against current slice of processes
@@ -184,16 +199,16 @@ func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 			// To-do: Something if its invalid
 			if currentProcess, valid := TryParse(line); valid {
 				processMap[currentProcess.ProcessID] = currentProcess
-
-				// We want to compare new process to old processes
+				// So this mess updates whether the process has significantly changed or not
+				if oldProcess, ok := oldProcessMap[currentProcess.ProcessID]; ok {
+					if HasProcessChanged(currentProcess, oldProcess) {
+						processesUpdated = append(processesUpdated, currentProcess)
+					}
+				}
 
 			}
 
-			// To-do: current Process against old process to see if I should update events slice
 		}
-
-		// Temporary until I add events.txt
-		processesUpdated := make([]ProcessInfo, 0)
 
 		// Gets processes started and finished
 		processesStarted := MapDifference(processMap, oldProcessMap)
@@ -203,8 +218,7 @@ func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 		events, _ := MarshalEventInfo(processesStarted, processesFinished)
 		filee.Write(events)
 
-		updates, _ := MarshalOutputInfo(processesUpdated)
-
+		updates, _ := MarshalUpdateInfo(processesUpdated)
 		fileo.Write(updates)
 
 		fmt.Println("Logged at", now)

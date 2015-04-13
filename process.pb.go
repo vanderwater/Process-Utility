@@ -22,13 +22,14 @@ var _ = proto.Marshal
 var _ = math.Inf
 
 type Process struct {
-	ProcessID        *int32  `protobuf:"varint,1,opt,name=processID" json:"processID,omitempty"`
-	VirtualSize      *int32  `protobuf:"varint,2,opt,name=virtualSize" json:"virtualSize,omitempty"`
-	TimeStarted      *string `protobuf:"bytes,3,opt,name=timeStarted" json:"timeStarted,omitempty"`
-	Command          *string `protobuf:"bytes,4,opt,name=command" json:"command,omitempty"`
-	WasOpened        *bool   `protobuf:"varint,5,opt,name=wasOpened" json:"wasOpened,omitempty"`
-	WasClosed        *bool   `protobuf:"varint,6,opt,name=wasClosed" json:"wasClosed,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	ProcessID        *int32   `protobuf:"varint,1,opt,name=processID" json:"processID,omitempty"`
+	VirtualSize      *int32   `protobuf:"varint,2,opt,name=virtual_size" json:"virtual_size,omitempty"`
+	TimeStarted      *string  `protobuf:"bytes,3,opt,name=time_started" json:"time_started,omitempty"`
+	Command          *string  `protobuf:"bytes,4,opt,name=command" json:"command,omitempty"`
+	CPUUsage         *float64 `protobuf:"fixed64,5,opt,name=CPU_usage" json:"CPU_usage,omitempty"`
+	WasOpened        *bool    `protobuf:"varint,15,opt,name=was_opened" json:"was_opened,omitempty"`
+	WasClosed        *bool    `protobuf:"varint,16,opt,name=was_closed" json:"was_closed,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
 }
 
 func (m *Process) Reset()         { *m = Process{} }
@@ -61,6 +62,13 @@ func (m *Process) GetCommand() string {
 		return *m.Command
 	}
 	return ""
+}
+
+func (m *Process) GetCPUUsage() float64 {
+	if m != nil && m.CPUUsage != nil {
+		return *m.CPUUsage
+	}
+	return 0
 }
 
 func (m *Process) GetWasOpened() bool {
