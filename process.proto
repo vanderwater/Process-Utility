@@ -7,10 +7,12 @@ package processUtility;
 
 message Process {
 
-	optional int32 pid = 1;
-	optional int32 vsz = 2;
-	optional string time = 3;
-	optional string comm = 4;
+	optional int32 processID = 1;
+	optional int32 virtualSize = 2;
+	optional string timeStarted = 3;
+	optional string command = 4;
+	optional bool wasOpened = 5;
+	optional bool wasClosed = 6;
 
 	}
 

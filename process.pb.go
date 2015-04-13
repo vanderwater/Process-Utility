@@ -22,10 +22,12 @@ var _ = proto.Marshal
 var _ = math.Inf
 
 type Process struct {
-	Pid              *int32  `protobuf:"varint,1,opt,name=pid" json:"pid,omitempty"`
-	Vsz              *int32  `protobuf:"varint,2,opt,name=vsz" json:"vsz,omitempty"`
-	Time             *string `protobuf:"bytes,3,opt,name=time" json:"time,omitempty"`
-	Comm             *string `protobuf:"bytes,4,opt,name=comm" json:"comm,omitempty"`
+	ProcessID        *int32  `protobuf:"varint,1,opt,name=processID" json:"processID,omitempty"`
+	VirtualSize      *int32  `protobuf:"varint,2,opt,name=virtualSize" json:"virtualSize,omitempty"`
+	TimeStarted      *string `protobuf:"bytes,3,opt,name=timeStarted" json:"timeStarted,omitempty"`
+	Command          *string `protobuf:"bytes,4,opt,name=command" json:"command,omitempty"`
+	WasOpened        *bool   `protobuf:"varint,5,opt,name=wasOpened" json:"wasOpened,omitempty"`
+	WasClosed        *bool   `protobuf:"varint,6,opt,name=wasClosed" json:"wasClosed,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -33,32 +35,46 @@ func (m *Process) Reset()         { *m = Process{} }
 func (m *Process) String() string { return proto.CompactTextString(m) }
 func (*Process) ProtoMessage()    {}
 
-func (m *Process) GetPid() int32 {
-	if m != nil && m.Pid != nil {
-		return *m.Pid
+func (m *Process) GetProcessID() int32 {
+	if m != nil && m.ProcessID != nil {
+		return *m.ProcessID
 	}
 	return 0
 }
 
-func (m *Process) GetVsz() int32 {
-	if m != nil && m.Vsz != nil {
-		return *m.Vsz
+func (m *Process) GetVirtualSize() int32 {
+	if m != nil && m.VirtualSize != nil {
+		return *m.VirtualSize
 	}
 	return 0
 }
 
-func (m *Process) GetTime() string {
-	if m != nil && m.Time != nil {
-		return *m.Time
+func (m *Process) GetTimeStarted() string {
+	if m != nil && m.TimeStarted != nil {
+		return *m.TimeStarted
 	}
 	return ""
 }
 
-func (m *Process) GetComm() string {
-	if m != nil && m.Comm != nil {
-		return *m.Comm
+func (m *Process) GetCommand() string {
+	if m != nil && m.Command != nil {
+		return *m.Command
 	}
 	return ""
+}
+
+func (m *Process) GetWasOpened() bool {
+	if m != nil && m.WasOpened != nil {
+		return *m.WasOpened
+	}
+	return false
+}
+
+func (m *Process) GetWasClosed() bool {
+	if m != nil && m.WasClosed != nil {
+		return *m.WasClosed
+	}
+	return false
 }
 
 type ProcessSet struct {
