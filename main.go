@@ -2,23 +2,19 @@ package main
 
 import (
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"math"
 	"os"
 	"os/exec"
-	"time"
-	//	"flag"		todo: implement -h
-	"github.com/golang/protobuf/proto"
 	"processUtility"
 	"strconv"
 	"strings"
+	"time"
+	//	"flag"		todo: implement -h
 )
 
 /* To-Do:
-*	Rearrange functions
-*	Create a vector(maybe map) of processes and processinfo struct
-*	Compare slice with incoming processes
-*	Only marshal when necessary
-*
+*	Something is wrong with the encoding of or decoding of TimeStarted
  */
 
 // In order to add a new field to Protobuf
@@ -48,7 +44,7 @@ func PBProcess(src ProcessInfo) *processUtility.Process {
 	result := new(processUtility.Process)
 	result.ProcessID = proto.Int32(src.ProcessID)
 	result.VirtualSize = proto.Int32(src.VirtualSize)
-	// Is it possible that addresses won't be cleaned up due to this?
+	// Is it possible that addresses won't be cleaned up or could be incorrect due to this?
 	result.TimeStarted = &src.TimeStarted
 	result.Command = &src.Command
 	result.CPUUsage = proto.Float64(src.CPUUsage)
@@ -109,6 +105,7 @@ func MarshalEventInfo(start []ProcessInfo, finished []ProcessInfo) ([]byte, erro
 }
 
 // Marshals updated process info
+// To-do: check for errors before returning to keep error checking within this function
 func MarshalUpdateInfo(updates []ProcessInfo) ([]byte, error) {
 
 	processSet := new(processUtility.ProcessSet)
@@ -160,14 +157,12 @@ func TryParse(outputLine string) (ProcessInfo, bool) {
 	return result, true
 }
 
-// Something is wrong here
 func MapDifference(primary map[int32]ProcessInfo, secondary map[int32]ProcessInfo) []ProcessInfo {
 
 	result := make([]ProcessInfo, 0)
 
 	for id, process := range primary {
-		_, ok := secondary[id]
-		if !ok {
+		if _, ok := secondary[id]; !ok {
 			result = append(result, process)
 		}
 	}
@@ -216,14 +211,38 @@ func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 		processesStarted := MapDifference(processMap, oldProcessMap)
 		processesFinished := MapDifference(oldProcessMap, processMap)
 
-		fmt.Println(processesStarted)
-		fmt.Println(processesFinished)
-
 		// Marshals Processes
-		events, _ := MarshalEventInfo(processesStarted, processesFinished)
+		events, err := MarshalEventInfo(processesStarted, processesFinished)
+		if err != nil {
+			panic(err)
+		}
+
+		// Events are when Processes Started and Finished
+		eventBuffer := proto.NewBuffer(nil)
+		length := len(events)
+		err = eventBuffer.EncodeVarint(uint64(length))
+		if err != nil {
+			panic(err)
+		}
+
+		filee.Write(eventBuffer.Bytes())
+		// So this is pretty hacky, but it ensures I write 8 bytes to the file
+		blank := make([]byte, 8-len(eventBuffer.Bytes()))
+		filee.Write(blank)
 		filee.Write(events)
 
-		updates, _ := MarshalUpdateInfo(processesUpdated)
+		// Updates to output are when processes change
+		updates, err := MarshalUpdateInfo(processesUpdated)
+		if err != nil {
+			panic(err)
+		}
+		updateBuffer := proto.NewBuffer(nil)
+		length = len(updates)
+		updateBuffer.EncodeVarint(uint64(length))
+		fileo.Write(updateBuffer.Bytes())
+		// Hacky thing from above
+		blank = make([]byte, 8-len(updateBuffer.Bytes()))
+		fileo.Write(blank)
 		fileo.Write(updates)
 
 		fmt.Println("Logged at", now)
@@ -236,7 +255,6 @@ func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 
 func main() {
 
-	// Couldn't one line it all, what's best practice?
 	updateAmount, _ := strconv.Atoi(os.Args[1]) // If an error is thrown, an invalid amount was entered
 	updatePeriod := time.Duration(updateAmount)
 
