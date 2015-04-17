@@ -44,7 +44,6 @@ func PBProcess(src ProcessInfo) *processUtility.Process {
 	result := new(processUtility.Process)
 	result.ProcessID = proto.Int32(src.ProcessID)
 	result.VirtualSize = proto.Int32(src.VirtualSize)
-	// Is it possible that addresses won't be cleaned up or could be incorrect due to this?
 	result.TimeStarted = &src.TimeStarted
 	result.Command = &src.Command
 	result.CPUUsage = proto.Float64(src.CPUUsage)
@@ -83,8 +82,12 @@ func HasProcessChanged(proc1 ProcessInfo, proc2 ProcessInfo) bool {
 	return false
 }
 
+// It could be possible to condense these two Marshal functions by passing in an integer
+// to the function. 0 for updated, 1 for started, 2 for exited. Then only one function would
+// need to be called. Concatenating two slices would have to happen in the GetProcessInfo function then
+
 // Marshals started and terminated process Info
-func MarshalEventInfo(start []ProcessInfo, finished []ProcessInfo) ([]byte, error) {
+func MarshalEventInfo(start []ProcessInfo, finished []ProcessInfo) []byte {
 
 	processSet := new(processUtility.ProcessSet)
 
@@ -100,13 +103,15 @@ func MarshalEventInfo(start []ProcessInfo, finished []ProcessInfo) ([]byte, erro
 		processSet.Processes = append(processSet.Processes, currentProcess)
 	}
 
-	return proto.Marshal(processSet)
-
+	result, err := proto.Marshal(processSet)
+	if err != nil {
+		panic(err)
+	}
+	return result
 }
 
 // Marshals updated process info
-// To-do: check for errors before returning to keep error checking within this function
-func MarshalUpdateInfo(updates []ProcessInfo) ([]byte, error) {
+func MarshalUpdateInfo(updates []ProcessInfo) []byte {
 
 	processSet := new(processUtility.ProcessSet)
 
@@ -115,7 +120,11 @@ func MarshalUpdateInfo(updates []ProcessInfo) ([]byte, error) {
 		processSet.Processes = append(processSet.Processes, currentProcess)
 	}
 
-	return proto.Marshal(processSet)
+	result, err := proto.Marshal(processSet)
+	if err != nil {
+		panic(err)
+	}
+	return result
 }
 
 func TryParse(outputLine string) (ProcessInfo, bool) {
@@ -157,6 +166,7 @@ func TryParse(outputLine string) (ProcessInfo, bool) {
 	return result, true
 }
 
+// Finds all processes that are in the primary map but not in the secondary map
 func MapDifference(primary map[int32]ProcessInfo, secondary map[int32]ProcessInfo) []ProcessInfo {
 
 	result := make([]ProcessInfo, 0)
@@ -171,14 +181,52 @@ func MapDifference(primary map[int32]ProcessInfo, secondary map[int32]ProcessInf
 
 }
 
+// Finds all updated processes by comparing them with the HasProcessChanged function
+func getProcessesChanged(currentProcessMap map[int32]ProcessInfo, oldProcessMap map[int32]ProcessInfo) []ProcessInfo {
+
+	processesUpdated := make([]ProcessInfo, 0)
+
+	for _, currentProcess := range currentProcessMap {
+		if oldProcess, ok := oldProcessMap[currentProcess.ProcessID]; ok {
+			if HasProcessChanged(currentProcess, oldProcess) {
+				processesUpdated = append(processesUpdated, currentProcess)
+			}
+		}
+	}
+
+	return processesUpdated
+
+}
+
+// Writes protobufs to given file and ensures they're delimited
+// by 8 byte size so they can be decoded
+func WriteProcessInfo(processData []byte, outputFile *os.File) {
+
+	processBuffer := proto.NewBuffer(nil)
+	length := len(processData)
+	err := processBuffer.EncodeVarint(uint64(length))
+	if err != nil {
+		panic(err)
+	}
+
+	outputFile.Write(processBuffer.Bytes())
+	// To-do: Make sure len of eventBuffer.Bytes() is not > 8
+
+	// Ensures I write 8 bytes to the file
+	blank := make([]byte, 8-len(processBuffer.Bytes()))
+	outputFile.Write(blank)
+	outputFile.Write(processData)
+
+}
+
 func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 
 	oldProcessMap := make(map[int32]ProcessInfo)
 
-	fileo, _ := os.Create("output.txt") // todo: implement err checking
-	defer fileo.Close()
-	filee, _ := os.Create("events.txt")
-	defer filee.Close()
+	updateFile, _ := os.Create("output.txt") // todo: implement err checking
+	defer updateFile.Close()
+	eventsFile, _ := os.Create("events.txt")
+	defer eventsFile.Close()
 
 	clock := time.NewTicker(updatePeriod * time.Second)
 
@@ -187,8 +235,6 @@ func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 
 		processMap := make(map[int32]ProcessInfo)
 
-		processesUpdated := make([]ProcessInfo, 0)
-
 		output := GetCurrentProcesses()
 		outputLines := strings.Split(string(output), "\n")
 		// Loop over all the outputs, check against current slice of processes
@@ -196,54 +242,21 @@ func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
 			// To-do: Something if its invalid
 			if currentProcess, valid := TryParse(line); valid {
 				processMap[currentProcess.ProcessID] = currentProcess
-				// So this mess updates whether the process has significantly changed or not
-				if oldProcess, ok := oldProcessMap[currentProcess.ProcessID]; ok {
-					if HasProcessChanged(currentProcess, oldProcess) {
-						processesUpdated = append(processesUpdated, currentProcess)
-					}
-				}
-
 			}
-
 		}
 
+		processesUpdated := getProcessesChanged(processMap, oldProcessMap)
 		// Gets processes started and finished
 		processesStarted := MapDifference(processMap, oldProcessMap)
 		processesFinished := MapDifference(oldProcessMap, processMap)
 
-		// Marshals Processes
-		events, err := MarshalEventInfo(processesStarted, processesFinished)
-		if err != nil {
-			panic(err)
-		}
-
 		// Events are when Processes Started and Finished
-		eventBuffer := proto.NewBuffer(nil)
-		length := len(events)
-		err = eventBuffer.EncodeVarint(uint64(length))
-		if err != nil {
-			panic(err)
-		}
-
-		filee.Write(eventBuffer.Bytes())
-		// So this is pretty hacky, but it ensures I write 8 bytes to the file
-		blank := make([]byte, 8-len(eventBuffer.Bytes()))
-		filee.Write(blank)
-		filee.Write(events)
+		events := MarshalEventInfo(processesStarted, processesFinished)
+		WriteProcessInfo(events, eventsFile)
 
 		// Updates to output are when processes change
-		updates, err := MarshalUpdateInfo(processesUpdated)
-		if err != nil {
-			panic(err)
-		}
-		updateBuffer := proto.NewBuffer(nil)
-		length = len(updates)
-		updateBuffer.EncodeVarint(uint64(length))
-		fileo.Write(updateBuffer.Bytes())
-		// Hacky thing from above
-		blank = make([]byte, 8-len(updateBuffer.Bytes()))
-		fileo.Write(blank)
-		fileo.Write(updates)
+		updates := MarshalUpdateInfo(processesUpdated)
+		WriteProcessInfo(updates, updateFile)
 
 		fmt.Println("Logged at", now)
 

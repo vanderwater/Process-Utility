@@ -11,13 +11,11 @@ import (
 	//	"flag"		todo: implement -h
 )
 
-// Need to do a byte read of events.txt and output.txt
-// and store in buffer. Ideally, only read protocol set at a time
-// unmarshalled.txt will be output file
-// take 0 arguments
-// use events.txt and output.txt
-
+// To-do:
+// Refactor!
 // Try to look at ps and see how they print in that format
+// Remove blank field if the process has been updated
+// Alter Unmarshal function
 
 // Exact same as in main.go but has two bools, WasOpened and WasClosed
 type ProcessInfo struct {
@@ -27,11 +25,13 @@ type ProcessInfo struct {
 	WasOpened, WasClosed   bool
 }
 
+// Takes an unmarshalled Process and puts it in a ProcessInfo
 func DecodeProcess(input *processUtility.Process) ProcessInfo {
 	var result ProcessInfo
 	result.ProcessID = input.GetProcessID()
 	result.VirtualSize = input.GetVirtualSize()
 	result.Command = input.GetCommand()
+	result.TimeStarted = input.GetTimeStarted()
 	result.CPUUsage = input.GetCPUUsage()
 	result.WasOpened = input.GetWasOpened()
 	result.WasClosed = input.GetWasClosed()
@@ -39,7 +39,7 @@ func DecodeProcess(input *processUtility.Process) ProcessInfo {
 	return result
 }
 
-// Should update this to make it easier to read
+// Creates a string of the processInfo, currently ugly
 func FormatProcess(input ProcessInfo) string {
 	goodName := make([]string, 6)
 	goodName[0] = fmt.Sprintf("Process %d", input.ProcessID)
@@ -53,13 +53,14 @@ func FormatProcess(input ProcessInfo) string {
 	goodName[2] = input.TimeStarted
 	goodName[3] = input.Command
 	goodName[4] = strconv.Itoa(int(input.VirtualSize))
-	goodName[5] = strconv.FormatFloat(input.CPUUsage, 'f', 8, 64)
+	goodName[5] = strconv.FormatFloat(input.CPUUsage, 'f', 3, 64)
 
 	result := strings.Join(goodName, ", ")
 	return result + "\n"
 
 }
 
+// Writes a process Set to file
 func PrintProcessSet(outputFile *os.File, processSet *processUtility.ProcessSet) {
 
 	// Get Processes
@@ -73,16 +74,16 @@ func PrintProcessSet(outputFile *os.File, processSet *processUtility.ProcessSet)
 	}
 }
 
-// Reads an entire file and returns the buffer of that file
-func ReadFile(f *os.File) []byte {
+// Reads an entire file and returns all data of the file in a buffer
+func ReadFile(currentFile *os.File) []byte {
 
 	// Get length of file
-	fileInfo, _ := f.Stat()
+	fileInfo, _ := currentFile.Stat()
 	fileSize := int(fileInfo.Size())
 
 	// I should probably make sure size isn't humongous so it doesn't read in a massive file
 
-	fileReader := bufio.NewReaderSize(f, fileSize)
+	fileReader := bufio.NewReaderSize(currentFile, fileSize)
 
 	result, err := fileReader.Peek(fileSize)
 
@@ -102,7 +103,7 @@ func ReadFile(f *os.File) []byte {
 
 }
 
-func DemarshalProcessSet(events *os.File, updates *os.File, demarshalled *os.File) {
+func UnmarshalProcessSet(events *os.File, updates *os.File, demarshalled *os.File) {
 
 	// Start by Decoding a Varint
 	// Read Varint bytes from file
@@ -186,11 +187,11 @@ func main() {
 	defer fileo.Close()
 	filee, _ := os.Open("events.txt")
 	defer filee.Close()
-	filed, _ := os.Create("demarshal.txt")
+	filed, _ := os.Create("unmarshal.txt")
 	defer filed.Close()
 
 	// until fileo end of file
 	// Decode output.txt
 	// Decode events.txt
-	DemarshalProcessSet(filee, fileo, filed)
+	UnmarshalProcessSet(filee, fileo, filed)
 }
