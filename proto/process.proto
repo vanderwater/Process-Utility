@@ -1,0 +1,27 @@
+package processProto;
+
+// To compile the protocol buffer definition, run protoc with the --go_out
+// parameter set to the directory you want to output the Go code to.
+//
+//	protoc --go_out=. *.proto
+//
+// was_opened and was_closed are set to 15 and 16 to add future process info
+
+
+message Process {
+
+	optional int32 processID = 1;
+	optional int32 virtual_size = 2;
+	optional string time_started = 3;
+	optional string command = 4;
+	optional double CPU_usage = 5;
+	optional bool was_opened = 15;
+	optional bool was_closed = 16;
+	
+}
+
+message ProcessSet {
+	
+	repeated Process processes = 1;
+	
+}
