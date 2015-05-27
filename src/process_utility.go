@@ -228,13 +228,13 @@ func WriteProcessInfo(processData []byte, outputFile *os.File) {
 
 }
 
-func GetProcessInfo(updatePeriod time.Duration) /* ([]byte, error)*/ {
+func GetProcessInfo(updatePeriod time.Duration, updateName string, eventName string) /* ([]byte, error)*/ {
 
 	oldProcessMap := make(map[int32]ProcessInfo)
 
-	updateFile, _ := os.Create("output.txt") // todo: implement err checking
+	updateFile, _ := os.Create(updateName) // todo: implement err checking
 	defer updateFile.Close()
-	eventsFile, _ := os.Create("events.txt")
+	eventsFile, _ := os.Create(eventName)
 	defer eventsFile.Close()
 
 	clock := time.NewTicker(updatePeriod * time.Second)

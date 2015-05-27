@@ -14,7 +14,7 @@ var (
 	// These are all pointers
 	unmarshal     = flag.Bool("unmarshal", false, "Unmarshals Process Info from Protobufs")
 	interval      = flag.Int("interval", 5, "Gathers process info every x seconds")
-	changeFile    = flag.String("changeFile", "change.txt", "Filename to record significant changes")
+	updateFile    = flag.String("updateFile", "update.txt", "Filename to record significant changes")
 	eventFile     = flag.String("eventFile", "events.txt", "Filename to record closed and openend processes")
 	unmarshalFile = flag.String("unmarshalFile", "unmarshal.txt", "Filename to print unmarshalled data")
 )
@@ -26,18 +26,15 @@ func main() {
 	// Add Error Checking
 	if !(*unmarshal) {
 		updatePeriod := time.Duration(*interval)
-		processUtility.GetProcessInfo(updatePeriod)
+		processUtility.GetProcessInfo(updatePeriod, *updateFile, *eventFile)
 	} else {
-		fileo, _ := os.Open(*changeFile) // todo: implement err checking
+		fileo, _ := os.Open(*updateFile)
 		defer fileo.Close()
 		filee, _ := os.Open(*eventFile)
 		defer filee.Close()
 		filed, _ := os.Create(*unmarshalFile)
 		defer filed.Close()
 
-		// until fileo end of file
-		// Decode output.txt
-		// Decode events.txt
 		processUtility.UnmarshalProcessSet(filee, fileo, filed)
 	}
 
