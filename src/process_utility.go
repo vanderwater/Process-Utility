@@ -3,7 +3,7 @@ package processUtility
 import (
 	"bufio"
 	"fmt"
-	"github.com/Vanderwater/Process-Utility/proto"
+	"github.com/vanderwater/Process-Utility/proto"
 	"github.com/golang/protobuf/proto"
 	"math"
 	"os"
