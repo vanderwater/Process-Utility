@@ -10,6 +10,8 @@ If necessary, .pb.go files can be remade with protoc --go_out=. process.proto
 
 Program runs until interrupted by user
 
-TODO: Refactor unmarshal and related functions
-      Add Testing
-      Change unmarshal output to be similar to ps
+      TODO: Refactor unmarshal and related functions
+
+            Add Testing
+      
+            Change unmarshal output to be similar to ps
