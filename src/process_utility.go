@@ -3,8 +3,8 @@ package processUtility
 import (
 	"bufio"
 	"fmt"
-	"github.com/vanderwater/Process-Utility/proto"
 	"github.com/golang/protobuf/proto"
+	"github.com/vanderwater/processutility/proto"
 	"math"
 	"os"
 	"os/exec"
@@ -14,9 +14,11 @@ import (
 )
 
 /* TODO/Vanderwater:
-*	Module
+*	Make unmarshal more modular
+*	Make it easier to extend ProcessInfo
 *	Go-test
 *	command line flags
+*	Make this idiomatic Go!!!!!
  */
 
 // In order to add a new field to Protobuf
@@ -371,6 +373,26 @@ func ReadFile(currentFile *os.File) []byte {
 
 }
 
+func getSizeOfData(set []byte) int {
+	//Implement Error Checking
+	eventsInfo, _ := events.Stat()
+	return int(eventsInfo.Size())
+}
+
+func unmarshalNextSet(incomingData []byte, setPosition int) ([]byte, int) {
+	setBuffer := proto.NewBuffer(incomingData[setPosition : setPosition+8])
+	setLength32, _ := setBuffer.DecodeVarint()
+	// Add error checking
+	nextSet := new(processProto.ProcessSet)
+	setPosition += 8
+	err = proto.Unmarshal(eventsData[eventsPosition:eventsPosition+setLength], nextSet)
+	if err != nil {
+		panic(err)
+	}
+	return nextSet, setPosition + setLength
+}
+
+// TODO/Vanderwater: I reaaallly need to rename these file pointers so they are obviously file pointers
 func UnmarshalProcessSet(events *os.File, updates *os.File, demarshalled *os.File) {
 
 	// Start by Decoding a Varint
@@ -386,63 +408,17 @@ func UnmarshalProcessSet(events *os.File, updates *os.File, demarshalled *os.Fil
 	eventsData := ReadFile(events)
 	updatesData := ReadFile(updates)
 
-	// TODO/Vanderwater: the classic error check
-	eventsInfo, _ := events.Stat()
-	eventsSize := int(eventsInfo.Size())
+	eventsSize := getSizeOfData(events)
 
 	var eventsPosition int = 0
 	var updatesPosition int = 0
 
-	// I could relegate most of this work to a function call and change this to:
-	// 	GetSizeOfSet
-	//	increment positions
-	//	Unmarshal and print set
-
 	for eventsPosition < eventsSize {
-		// slice off 8 bytes
-		// Decode the fixed32 from that
-		setBuffer := proto.NewBuffer(eventsData[eventsPosition : eventsPosition+8])
-		eventsPosition += 8
 
-		setLength32, err := setBuffer.DecodeVarint()
-		if err != nil {
-			panic(err)
-		}
-		// Need to convert to regular integer
-		setLength := int(setLength32)
-
-		eventsSet := new(processProto.ProcessSet)
-
-		err = proto.Unmarshal(eventsData[eventsPosition:eventsPosition+setLength], eventsSet)
-		if err != nil {
-			panic(err)
-		}
-
-		eventsPosition += setLength
-
+		eventsSet, eventsPosition := unmarshalNextSet(eventsData, eventsPosition)
 		PrintProcessSet(demarshalled, eventsSet)
 
-		// Literally copypasted from above... function calls could help this
-
-		updatesBuffer := proto.NewBuffer(updatesData[updatesPosition : updatesPosition+8])
-		updatesPosition += 8
-
-		setLength32, err = updatesBuffer.DecodeVarint()
-		if err != nil {
-			panic(err)
-		}
-		// Need to convert to regular integer
-		setLength = int(setLength32)
-
-		updatesSet := new(processProto.ProcessSet)
-
-		err = proto.Unmarshal(updatesData[updatesPosition:updatesPosition+setLength], updatesSet)
-		if err != nil {
-			panic(err)
-		}
-
-		updatesPosition += setLength
-
+		updatesSet, updatesPosition := unmarshalNextSet(updatesData, updatesPosition)
 		PrintProcessSet(demarshalled, updatesSet)
 
 	}
