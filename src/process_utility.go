@@ -211,7 +211,7 @@ func getProcessesChanged(currentProcessMap map[int32]ProcessInfo, oldProcessMap 
 
 // Writes protobufs to given file and ensures they're delimited
 // by 8 byte size so they can be decoded
-func WriteProcessInfo(processData []byte, outputFile *os.File) {
+func WriteProcessInfo(processData []byte, outputFile io.Writer) {
 
 	processBuffer := proto.NewBuffer(nil)
 	length := len(processData)
@@ -281,14 +281,10 @@ func GetProcessInfo(updatePeriod time.Duration, updateName string, eventName str
 // Refactor!
 // Try to look at ps and see how they print in that format
 // Remove blank field if the process has been updated
-// Alter Unmarshal function
-// Pass Writers and Readers instead of Files
 
 // Takes an unmarshalled Process and puts it in a ProcessInfo
 func DecodeProcess(input *processProto.Process) ProcessInfo {
 	var result ProcessInfo
-
-	// do nilProcess thing
 
 	result.ProcessID = input.GetProcessID()
 	result.VirtualSize = input.GetVirtualSize()
@@ -301,31 +297,22 @@ func DecodeProcess(input *processProto.Process) ProcessInfo {
 	return result
 }
 
-// Creates a string of the processInfo, currently ugly
-//func (this *ProcessInfo) String() string {
-//	stateChange := ""
-//
-//	// %v everywhere unless something weird
-//	// %.1f floating point with 1 place after decimal
-//}
-
-// Use somethingBuilder instead of goodName
 func FormatProcess(input ProcessInfo) string {
-	goodName := make([]string, 6)
-	goodName[0] = fmt.Sprintf("Process %d", input.ProcessID)
+	processBuilder := make([]string, 6)
+	processBuilder[0] = fmt.Sprintf("Process %d", input.ProcessID)
 	if input.WasOpened {
-		goodName[1] = "was opened"
+		processBuilder[1] = "was opened"
 	} else if input.WasClosed {
-		goodName[1] = "was closed"
+		processBuilder[1] = "was closed"
 	} else {
-		goodName[1] = ""
+		processBuilder[1] = ""
 	}
-	goodName[2] = input.TimeStarted
-	goodName[3] = input.Command
-	goodName[4] = strconv.Itoa(int(input.VirtualSize))
-	goodName[5] = strconv.FormatFloat(input.CPUUsage, 'f', 3, 64)
+	processBuilder[2] = input.TimeStarted
+	processBuilder[3] = input.Command
+	processBuilder[4] = strconv.Itoa(int(input.VirtualSize))
+	processBuilder[5] = strconv.FormatFloat(input.CPUUsage, 'f', 3, 64)
 
-	result := strings.Join(goodName, ", ")
+	result := strings.Join(processBuilder, ", ")
 	return result + "\n"
 
 }
@@ -345,13 +332,11 @@ func PrintProcessSet(outputFile *os.File, processSet *processProto.ProcessSet) {
 }
 
 // Reads an entire file and returns all data of the file in a buffer
-func ReadFile(currentFile *os.File) []byte {
+func ReadFile(currentFile io.Reader) []byte {
 
 	// Get length of file
 	fileInfo, _ := currentFile.Stat()
 	fileSize := int(fileInfo.Size())
-
-	// I should probably make sure size isn't humongous so it doesn't read in a massive file
 
 	fileReader := bufio.NewReaderSize(currentFile, fileSize)
 
@@ -362,14 +347,6 @@ func ReadFile(currentFile *os.File) []byte {
 	}
 
 	return result
-
-	// So I was thinking of doing reads until I read the whole file
-	// But I figured peek can do that all in one call...
-	// There's definitely something I'm missing
-	//	var currentPosition inti = 0
-	//	for currentPosition < fileSize {
-	//	Read....
-	//	}
 
 }
 
@@ -393,14 +370,7 @@ func unmarshalNextSet(incomingData []byte, setPosition int) ([]byte, int) {
 }
 
 // TODO/Vanderwater: I reaaallly need to rename these file pointers so they are obviously file pointers
-func UnmarshalProcessSet(events *os.File, updates *os.File, demarshalled *os.File) {
-
-	// Start by Decoding a Varint
-	// Read Varint bytes from file
-	// Demarshal into a ProcessSet
-	// Use processUtility.GetProcesses(procesSet) to get slice
-	// Send each one into DecodeProcess Function
-	// Send ProcessInfo to Print Process
+func UnmarshalProcessSet(events io.Reader, updates io.Reader, demarshalled io.Writer) {
 
 	// TODO/Vanderwater: This assumes updates and events were marshalled without error, if one errors without the other
 	// Then this doesn't run since I only check eventsPosition and eventsSize
@@ -413,7 +383,7 @@ func UnmarshalProcessSet(events *os.File, updates *os.File, demarshalled *os.Fil
 	var eventsPosition int = 0
 	var updatesPosition int = 0
 
-	for eventsPosition < eventsSize {
+	for eventsPosition < eventsSize && updatesPosition < updatesSize {
 
 		eventsSet, eventsPosition := unmarshalNextSet(eventsData, eventsPosition)
 		PrintProcessSet(demarshalled, eventsSet)
@@ -422,5 +392,9 @@ func UnmarshalProcessSet(events *os.File, updates *os.File, demarshalled *os.Fil
 		PrintProcessSet(demarshalled, updatesSet)
 
 	}
+
+	//if eventsPosition < eventsSize || updatesPosition < updatesSize {
+	//	// Do Error checking
+	//}
 
 }
