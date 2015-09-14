@@ -17,7 +17,6 @@ import (
 *	Make unmarshal more modular
 *	Make it easier to extend ProcessInfo
 *	Go-test
-*	command line flags
 *	Make this idiomatic Go!!!!!
  */
 
@@ -91,10 +90,6 @@ func HasProcessChanged(proc1 ProcessInfo, proc2 ProcessInfo) bool {
 	}
 	return false
 }
-
-// It could be possible to condense these two Marshal functions by passing in an integer
-// to the function. 0 for updated, 1 for started, 2 for exited. Then only one function would
-// need to be called. Concatenating two slices would have to happen in the GetProcessInfo function then
 
 // Marshals started and terminated process Info
 func MarshalEventInfo(start []ProcessInfo, finished []ProcessInfo) []byte {
@@ -222,7 +217,9 @@ func WriteProcessInfo(processData []byte, outputFile io.Writer) {
 
 	outputFile.Write(processBuffer.Bytes())
 	// TODO/Vanderwater: Make sure len of eventBuffer.Bytes() is not > 8
-
+	if len(processBuffer.Bytes() > 8) {
+		panic("Set size too large, increase delimiter to the next power of 2 in config")
+	}
 	// Ensures I write 8 bytes to the file
 	blank := make([]byte, 8-len(processBuffer.Bytes()))
 	outputFile.Write(blank)
@@ -320,9 +317,7 @@ func FormatProcess(input ProcessInfo) string {
 // Writes a process Set to file
 func PrintProcessSet(outputFile *os.File, processSet *processProto.ProcessSet) {
 
-	// Get Processes
 	processes := processSet.GetProcesses()
-	// Decode Processes
 	for _, current := range processes {
 		processInfo := DecodeProcess(current)
 		outputString := FormatProcess(processInfo)
@@ -372,29 +367,26 @@ func unmarshalNextSet(incomingData []byte, setPosition int) ([]byte, int) {
 // TODO/Vanderwater: I reaaallly need to rename these file pointers so they are obviously file pointers
 func UnmarshalProcessSet(events io.Reader, updates io.Reader, demarshalled io.Writer) {
 
-	// TODO/Vanderwater: This assumes updates and events were marshalled without error, if one errors without the other
-	// Then this doesn't run since I only check eventsPosition and eventsSize
-
 	eventsData := ReadFile(events)
 	updatesData := ReadFile(updates)
-
 	eventsSize := getSizeOfData(events)
 
 	var eventsPosition int = 0
 	var updatesPosition int = 0
 
 	for eventsPosition < eventsSize && updatesPosition < updatesSize {
-
 		eventsSet, eventsPosition := unmarshalNextSet(eventsData, eventsPosition)
 		PrintProcessSet(demarshalled, eventsSet)
 
 		updatesSet, updatesPosition := unmarshalNextSet(updatesData, updatesPosition)
 		PrintProcessSet(demarshalled, updatesSet)
-
 	}
 
-	//if eventsPosition < eventsSize || updatesPosition < updatesSize {
-	//	// Do Error checking
-	//}
+	if eventsPosition < eventsSize {
+		panic("All of Events not read\n")
+	}
+	if updatesPosition < updatesSize {
+		panic("All of Updates not read\n")
+	}
 
 }
